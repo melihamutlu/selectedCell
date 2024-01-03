@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Table } from 'antd';
 import { ColumnsType } from 'antd/es/table';
 
@@ -40,38 +40,61 @@ const Tablo: React.FC = () => {
   const [data] = useState<VeriTipi[]>(initialData);
   const [selectedCells, setSelectedCells] = useState<{ rowKey: React.Key; dataIndex: keyof VeriTipi }[]>([]);
   const [ctrlPressed, setCtrlPressed] = useState<boolean>(false);
+  const [isMouseDown, setIsMouseDown] = useState<boolean>(false);
 
-  const handleCellClick = (rowKey: React.Key, dataIndex: keyof VeriTipi, e: React.MouseEvent<HTMLDivElement>) => {
-    if (!ctrlPressed) {
-      // Ctrl tuşuna basılmamışsa mevcut seçimleri temizle
+  useEffect(() => {
+    const handleMouseUp = () => {
+      setIsMouseDown(false);
+    };
+
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
+
+  const handleCellClick = (rowKey: React.Key, dataIndex: keyof VeriTipi) => {
+    const index = selectedCells.findIndex(cell => cell.rowKey === rowKey && cell.dataIndex === dataIndex);
+
+    if (index === -1) {
       setSelectedCells([{ rowKey, dataIndex }]);
     } else {
-      // Ctrl tuşuna basılmışsa yeni seçimi ekleyip/kaldır
-      const isSelected = selectedCells.some(cell => cell.rowKey === rowKey && cell.dataIndex === dataIndex);
-      let updatedSelection: { rowKey: React.Key; dataIndex: keyof VeriTipi }[];
-
-      if (isSelected) {
-        updatedSelection = selectedCells.filter(cell => !(cell.rowKey === rowKey && cell.dataIndex === dataIndex));
-      } else {
-        updatedSelection = [...selectedCells, { rowKey, dataIndex }];
-      }
-
-      setSelectedCells(updatedSelection);
+      const newSelectedCells = [...selectedCells];
+      newSelectedCells.splice(index, 1);
+      setSelectedCells(newSelectedCells);
     }
   };
-
+// hücereye tıkla
+  const handleMouseEnter = (rowKey: React.Key, dataIndex: keyof VeriTipi) => {
+    if (!ctrlPressed && isMouseDown) {
+      const index = selectedCells.findIndex(cell => cell.rowKey === rowKey && cell.dataIndex === dataIndex);
+      if (index === -1) {
+        setSelectedCells([{ rowKey, dataIndex }]);
+      }
+    } else if (ctrlPressed && isMouseDown) {
+      const startCell = selectedCells.length > 0 ? selectedCells[0] : { rowKey, dataIndex };
+      const cellsInRange = getCellsInRange(startCell, { rowKey, dataIndex });
+      setSelectedCells(cellsInRange);
+    }
+  };
+// tıklamayı kaldır
+  const handleMouseDown = () => {
+    setIsMouseDown(true);
+  };
+// klavyeye tklama
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Control') {
       setCtrlPressed(true);
     }
   };
-
+// tıkı kaldırma
   const handleKeyUp = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Control') {
       setCtrlPressed(false);
     }
   };
-
+// hücre seçili mi?
   const isCellSelected = (rowKey: React.Key, dataIndex: keyof VeriTipi) => {
     return selectedCells.some(cell => cell.rowKey === rowKey && cell.dataIndex === dataIndex);
   };
@@ -79,7 +102,9 @@ const Tablo: React.FC = () => {
   const renderCell = (rowKey: React.Key, dataIndex: keyof VeriTipi, text: React.ReactNode) => ({
     children: (
       <div
-        onClick={(e) => handleCellClick(rowKey, dataIndex, e)}
+        onClick={() => handleCellClick(rowKey, dataIndex)}
+        onMouseEnter={() => handleMouseEnter(rowKey, dataIndex)}
+        onMouseDown={handleMouseDown}
         onKeyDown={handleKeyDown}
         onKeyUp={handleKeyUp}
         tabIndex={0}
@@ -91,7 +116,6 @@ const Tablo: React.FC = () => {
       </div>
     ),
   });
-
 
   const columns: ColumnsType<VeriTipi> = [
     {
@@ -115,6 +139,26 @@ const Tablo: React.FC = () => {
       render: (text, record) => renderCell(record.anahtar, 'adres', text),
     },
   ];
+
+  // başlangıç ve bitişte tıklanan hücrelerin arasındaki hücreleri hesaplar.
+  const getCellsInRange = (startCell: { rowKey: React.Key; dataIndex: keyof VeriTipi }, endCell: { rowKey: React.Key; dataIndex: keyof VeriTipi }): { rowKey: React.Key; dataIndex: keyof VeriTipi }[] => {
+    const startRowIndex = parseInt(startCell.rowKey as string, 10);
+    const endRowIndex = parseInt(endCell.rowKey as string, 10);
+
+    const startDataIndex = Object.keys(initialData[0]).indexOf(startCell.dataIndex);
+    const endDataIndex = Object.keys(initialData[0]).indexOf(endCell.dataIndex);
+
+    const selectedCells: { rowKey: React.Key; dataIndex: keyof VeriTipi }[] = [];
+
+    for (let i = Math.min(startRowIndex, endRowIndex); i <= Math.max(startRowIndex, endRowIndex); i++) {
+      for (let j = Math.min(startDataIndex, endDataIndex); j <= Math.max(startDataIndex, endDataIndex); j++) {
+        const currentDataIndex = Object.keys(initialData[0])[j];
+        selectedCells.push({ rowKey: i.toString(), dataIndex: currentDataIndex as keyof VeriTipi });
+      }
+    }
+
+    return selectedCells;
+  };
 
   return (
     <Table
