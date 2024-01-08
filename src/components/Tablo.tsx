@@ -41,6 +41,8 @@ const Tablo: React.FC = () => {
   const [selectedCells, setSelectedCells] = useState<{ rowKey: React.Key; dataIndex: keyof VeriTipi }[]>([]);
   const [ctrlPressed, setCtrlPressed] = useState<boolean>(false);
   const [isMouseDown, setIsMouseDown] = useState<boolean>(false);
+  const [previewSelection, setPreviewSelection] = useState<{ startCell?: { rowKey: React.Key; dataIndex: keyof VeriTipi }, endCell?: { rowKey: React.Key; dataIndex: keyof VeriTipi } }>({});
+
 
   useEffect(() => {
     const handleMouseUp = () => {
@@ -66,17 +68,19 @@ const Tablo: React.FC = () => {
     }
   };
 // hücereye tıkla
-  const handleMouseEnter = (rowKey: React.Key, dataIndex: keyof VeriTipi) => {
-    if (!ctrlPressed && isMouseDown) {
-      const index = selectedCells.findIndex(cell => cell.rowKey === rowKey && cell.dataIndex === dataIndex);
-      if (index === -1) {
-        setSelectedCells([{ rowKey, dataIndex }]);
-      }
-    } else if (ctrlPressed && isMouseDown) {
-      const startCell = selectedCells.length > 0 ? selectedCells[0] : { rowKey, dataIndex };
-      const cellsInRange = getCellsInRange(startCell, { rowKey, dataIndex });
-      setSelectedCells(cellsInRange);
+const handleMouseEnter = (rowKey: React.Key, dataIndex: keyof VeriTipi) => {
+  if (!ctrlPressed && isMouseDown) {
+    const index = selectedCells.findIndex(cell => cell.rowKey === rowKey && cell.dataIndex === dataIndex);
+    if (index === -1) {
+      setSelectedCells([{ rowKey, dataIndex }]);
     }
+  } else if (ctrlPressed && isMouseDown) {
+    const startCell = selectedCells.length > 0 ? selectedCells[0] : { rowKey, dataIndex };
+    const cellsInRange = getCellsInRange(startCell, { rowKey, dataIndex });
+    setSelectedCells(cellsInRange);
+  }
+  // Yeni bir hücreye geldiğimizde, önceki önizleme seçimini kaldır
+  setPreviewSelection({});
   };
 // tıklamayı kaldır
   const handleMouseDown = () => {
@@ -99,23 +103,49 @@ const Tablo: React.FC = () => {
     return selectedCells.some(cell => cell.rowKey === rowKey && cell.dataIndex === dataIndex);
   };
 
-  const renderCell = (rowKey: React.Key, dataIndex: keyof VeriTipi, text: React.ReactNode) => ({
-    children: (
-      <div
-        onClick={() => handleCellClick(rowKey, dataIndex)}
-        onMouseEnter={() => handleMouseEnter(rowKey, dataIndex)}
-        onMouseDown={handleMouseDown}
-        onKeyDown={handleKeyDown}
-        onKeyUp={handleKeyUp}
-        tabIndex={0}
-        style={{
-          background: isCellSelected(rowKey, dataIndex) ? 'yellow' : 'transparent',
-        }}
-      >
-        {text}
-      </div>
-    ),
-  });
+  const renderCell = (rowKey: React.Key, dataIndex: keyof VeriTipi, text: React.ReactNode) => {
+    const isSelected = isCellSelected(rowKey, dataIndex);
+    const isPreviewSelected = previewSelection.startCell && previewSelection.endCell &&
+      rowKey >= previewSelection.startCell.rowKey && rowKey <= previewSelection.endCell.rowKey &&
+      dataIndex >= previewSelection.startCell.dataIndex && dataIndex <= previewSelection.endCell.dataIndex;
+  
+    const background = isSelected ? 'yellow' : isPreviewSelected ? 'rgba(0, 0, 255, 0.1)' : 'transparent';
+  
+    return {
+      children: (
+        <div
+          onClick={() => handleCellClick(rowKey, dataIndex)}
+          onMouseEnter={() => handleMouseEnter(rowKey, dataIndex)}
+          onMouseDown={handleMouseDown}
+          onKeyDown={handleKeyDown}
+          onKeyUp={handleKeyUp}
+          tabIndex={0}
+          style={{
+            background: isSelected ? 'yellow' : 'transparent',
+            position: 'relative',
+            userSelect: 'none',
+          }}
+        >
+          {text}
+          {isPreviewSelected && (
+            <div
+              style={{
+                position: 'absolute',
+                border: '1px solid blue',
+                zIndex: 1,
+                pointerEvents: 'none',
+                background: 'rgba(0, 0, 255, 0.1)', // Önizleme alanının arka plan rengi
+                top: '0',
+                left: '0',
+                right: '0',
+                bottom: '0',
+              }}
+            />
+          )}
+        </div>
+      ),
+    };
+  };
 
   const columns: ColumnsType<VeriTipi> = [
     {
@@ -166,6 +196,7 @@ const Tablo: React.FC = () => {
       dataSource={data}
       rowKey="anahtar"
       rowSelection={undefined}
+      pagination={false}
     />
   );
 };
